@@ -103,11 +103,14 @@ Generated files:
     Results\Animations\isolator_propagation.gif
     Results\Animations\circulator_routing.gif
     Results\Animations\wdm_co_propagation.gif
+    Results\Animations\wdm_fiber_propagation.gif
 
-The WDM GIF presents five stages: separate channels move to the multiplexer,
+The WDM `wdm_co_propagation.gif` presents five stages: separate channels move to the multiplexer,
 combine onto the shared fiber, travel together, split at the demultiplexer,
 and arrive at their matching receivers. The system-diagram PNG shows the
 completed path, and the storyboard PNG shows selected animation frames.
+The `wdm_fiber_propagation.gif` preserves the earlier focused view of the
+colored channel waves moving together through the shared fiber.
 
     Results\Data\isolator_results.csv
     Results\Data\circulator_results.csv
@@ -131,7 +134,8 @@ not installed in the environment where this project was last run, so MATLAB
 execution and its outputs have not been verified there.
 The MATLAB entry point asks for the equivalent values and accepts defaults
 when Enter is pressed. It supports a user-selected WDM channel count and
-wavelengths; the circulator remains three-port.
+wavelengths; the circulator remains three-port. MATLAB generates matching
+full-system and fiber-only WDM GIFs with `_matlab` suffixes.
 
 
 MODEL LIMITATIONS

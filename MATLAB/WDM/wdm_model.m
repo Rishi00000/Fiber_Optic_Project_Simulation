@@ -295,3 +295,47 @@ for wdmFrame = 1:120
     end
 end
 close(wdmAnimationFigure);
+
+% Retain the original fiber-only view as a second animation for presentations.
+wdmFiberGifPath = fullfile(wdmAnimationDir, 'wdm_fiber_propagation_matlab.gif');
+wdmFiberFigure = figure('Name', 'WDM waves inside shared fiber');
+wdmDistance_km = linspace(0, wdmFiberLength_km, 400);
+for wdmFrame = 1:60
+    clf(wdmFiberFigure);
+    hold on;
+    wdmProgress = (wdmFrame - 1) / 59;
+    wdmDistanceTraveled_km = wdmFiberLength_km * wdmProgress;
+    for wdmChannelIndex = 1:wdmChannelCount
+        wdmPhaseScale_km = 10 + (wdmChannelIndex - 1) * 1.7;
+        wdmPhaseShift = wdmDistanceTraveled_km / ...
+            (50 + (wdmChannelIndex - 1) * 2);
+        wdmPhase = 2 * pi * ...
+            (wdmDistance_km / wdmPhaseScale_km - wdmPhaseShift);
+        wdmLocalLoss_dB = wdmAttenuation_dB_per_km * ...
+            wdmDistanceTraveled_km;
+        wdmAmplitude = 10^(-wdmLocalLoss_dB / 20);
+        plot(wdmDistance_km, wdmAmplitude * sin(wdmPhase), ...
+            'Color', wdmRouteColors(wdmChannelIndex, :), 'LineWidth', 1.6);
+    end
+    grid on;
+    xlabel('Distance along the shared fiber (km)');
+    ylabel('Illustrative field oscillation');
+    title('WDM channels co-propagating through one fiber');
+    legend(wdmLegend, 'Location', 'northeast');
+    text(0.02, 0.93, sprintf('All %d channels together | distance: %.1f km', ...
+        wdmChannelCount, wdmDistanceTraveled_km), ...
+        'Units', 'normalized', 'HorizontalAlignment', 'left', ...
+        'Color', [0.20, 0.29, 0.37]);
+    axis([0, max(wdmFiberLength_km, eps), -1.5, 1.5]);
+    drawnow;
+    wdmFrameData = getframe(wdmFiberFigure);
+    [wdmIndexed, wdmMap] = rgb2ind(wdmFrameData.cdata, 256);
+    if wdmFrame == 1
+        imwrite(wdmIndexed, wdmMap, wdmFiberGifPath, 'gif', ...
+            'LoopCount', inf, 'DelayTime', 0.05);
+    else
+        imwrite(wdmIndexed, wdmMap, wdmFiberGifPath, 'gif', ...
+            'WriteMode', 'append', 'DelayTime', 0.05);
+    end
+end
+close(wdmFiberFigure);

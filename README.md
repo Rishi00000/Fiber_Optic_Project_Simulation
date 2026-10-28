@@ -17,7 +17,8 @@ not commercial component designs or experimentally validated measurements.
 - Labeled plots, CSV result tables, and educational GIF animations are generated
   under `Results/`. The WDM animation shows the channel flow through transmitters,
   MUX, shared fiber, DEMUX, and receivers; a storyboard and final diagram frame
-  are also saved for presentation.
+  are also saved for presentation. A second, fiber-only WDM wave animation is
+  retained to focus on co-propagation inside the shared fiber.
 - Python and MATLAB use the same illustrative system parameters.
 
 ## Requirements and setup (Windows)

@@ -206,6 +206,7 @@ def run(
                              fiber_length_km, attenuation_db_per_km,
                              beta2_ps2_per_km, output_power])
     create_animation(result)
+    create_fiber_animation(result)
     return result
 
 
@@ -396,6 +397,66 @@ def create_animation(result=None):
         saved_animation.convert("RGB").save(
             GRAPHS_DIR / "wdm_system_diagram.png"
         )
+
+
+def create_fiber_animation(result=None):
+    """Create the original co-propagating wave view as a separate GIF."""
+    if result is None:
+        result = simulate_wdm(sample_count=512)
+    wavelengths = result["wavelengths_nm"]
+    channel_count = len(wavelengths)
+    fiber_length_km = result["fiber_length_km"]
+    distance_km = np.linspace(0.0, fiber_length_km, 400)
+    colors = plt.get_cmap("tab10")(np.linspace(0, 1, channel_count))
+
+    figure, axis = plt.subplots(figsize=(9, 4))
+    lines = [
+        axis.plot([], [], color=color, linewidth=1.6,
+                  label=f"{wavelength:g} nm")[0]
+        for color, wavelength in zip(colors, wavelengths)
+    ]
+    axis.set(
+        xlim=(0.0, max(fiber_length_km, 1e-9)),
+        ylim=(-1.5, 1.5),
+        xlabel="Distance along the shared fiber (km)",
+        ylabel="Illustrative field oscillation",
+    )
+    axis.set_title("WDM channels co-propagating through one fiber")
+    axis.legend(ncol=min(channel_count, 4), fontsize=8, loc="upper right")
+    status = axis.text(
+        0.02, 0.92, "", transform=axis.transAxes, ha="left", va="top",
+        fontsize=9, color="#34495e",
+    )
+
+    def update(frame):
+        progress = frame / 59.0
+        distance_traveled = fiber_length_km * progress
+        for index, line in enumerate(lines):
+            wavelength_nm = wavelengths[index]
+            phase_scale_km = 10.0 + index * 1.7
+            phase_shift = distance_traveled / (50.0 + index * 2.0)
+            phase = 2.0 * np.pi * (
+                distance_km / phase_scale_km - phase_shift
+            )
+            attenuation_db = (
+                result["attenuation_db_per_km"] * distance_traveled
+            )
+            amplitude = 10.0 ** (-attenuation_db / 20.0)
+            line.set_data(distance_km, amplitude * np.sin(phase))
+        status.set_text(
+            f"All {channel_count} channels travel together | "
+            f"distance: {distance_traveled:.1f} km"
+        )
+        return (*lines, status)
+
+    animation = FuncAnimation(
+        figure, update, frames=60, interval=50, blit=True, repeat=True
+    )
+    prepare_output_dirs()
+    animation_path = ANIMATIONS_DIR / "wdm_fiber_propagation.gif"
+    animation.save(animation_path, writer=PillowWriter(fps=20))
+    plt.close(figure)
+    return animation_path
 
 
 if __name__ == "__main__":
