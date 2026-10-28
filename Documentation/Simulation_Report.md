@@ -69,6 +69,12 @@ effects, polarization-mode dispersion, receiver noise, practical filter
 imperfections, and transmitter/receiver electronics. The animation tracks are
 schematic and are not literal optical-carrier field simulations.
 
+The WDM presentation animation is a block-diagram view: individually colored
+channels advance from transmitter boxes, converge through the multiplexer,
+remain separately identifiable inside the shared fiber, diverge through the
+demultiplexer, and reach their corresponding receiver boxes. A storyboard and
+completed-route image are generated alongside the GIF.
+
 Therefore, the simulations are suitable for illustrating equations and
 parameter trends, but should not be used to select or certify physical
 components or communication links.

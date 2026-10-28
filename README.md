@@ -15,7 +15,9 @@ not commercial component designs or experimentally validated measurements.
   attenuation and second-order chromatic dispersion, and frequency-domain
   demultiplexing.
 - Labeled plots, CSV result tables, and educational GIF animations are generated
-  under `Results/`.
+  under `Results/`. The WDM animation shows the channel flow through transmitters,
+  MUX, shared fiber, DEMUX, and receivers; a storyboard and final diagram frame
+  are also saved for presentation.
 - Python and MATLAB use the same illustrative system parameters.
 
 ## Requirements and setup (Windows)

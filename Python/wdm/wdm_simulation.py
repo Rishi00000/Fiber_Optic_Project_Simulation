@@ -5,8 +5,14 @@ import csv
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.animation import FuncAnimation, PillowWriter
+from PIL import Image
 
-from Python.common.optical_constants import ANIMATIONS_DIR, C0_M_PER_S, DATA_DIR
+from Python.common.optical_constants import (
+    ANIMATIONS_DIR,
+    C0_M_PER_S,
+    DATA_DIR,
+    GRAPHS_DIR,
+)
 from Python.common.plotting_utils import prepare_output_dirs, save_figure
 
 
@@ -206,29 +212,190 @@ def run(
 def create_animation(result=None):
     if result is None:
         result = simulate_wdm(sample_count=512)
-    figure, axis = plt.subplots(figsize=(8, 3.4))
-    fiber_length_km = result["fiber_length_km"]
-    z = np.linspace(0.0, fiber_length_km, 300)
-    colors = plt.get_cmap("tab10")(np.linspace(0, 1, len(result["wavelengths_nm"])))
-    lines = [axis.plot([], [], color=color, linewidth=1.4, label=f"{wavelength:.0f} nm")[0]
-             for color, wavelength in zip(colors, result["wavelengths_nm"])]
-    axis.set(xlim=(0, max(fiber_length_km, 1e-9)), ylim=(-1.5, 1.5),
-             xlabel="Distance along common fiber (km)",
-             ylabel="Illustrative field oscillation")
-    axis.set_title(f"{len(result['wavelengths_nm'])} WDM channels co-propagating in one fiber")
-    axis.legend(ncol=4, fontsize=8, loc="upper right")
+    wavelengths = result["wavelengths_nm"]
+    channel_count = len(wavelengths)
+    colors = plt.get_cmap("tab10")(np.linspace(0, 1, channel_count))
+    lane_y = np.arange(channel_count, 0, -1, dtype=float)
+    center_y = (channel_count + 1.0) / 2.0
+    bundle_spacing = min(0.16, max(0.06, 0.48 / channel_count))
+    bundle_offsets = (
+        np.arange(channel_count) - (channel_count - 1) / 2.0
+    ) * bundle_spacing
+    x_transmitter = (0.25, 1.25)
+    x_mux = (2.70, 3.35)
+    x_fiber = (3.35, 6.65)
+    x_demux = (6.65, 7.30)
+    x_receiver = (8.75, 9.75)
+    route_lines = []
+
+    figure_height = max(4.5, 1.0 + 0.72 * channel_count)
+    figure, axis = plt.subplots(figsize=(12, figure_height))
+    axis.set_xlim(0.0, 10.0)
+    axis.set_ylim(0.0, channel_count + 1.0)
+    axis.axis("off")
+    axis.set_title("Wavelength Division Multiplexing (WDM)", fontsize=17, pad=18)
+
+    axis.text(0.75, channel_count + 0.45, "TRANSMITTERS", ha="center",
+              va="center", fontsize=11, weight="bold")
+    axis.text(9.25, channel_count + 0.45, "RECEIVERS", ha="center",
+              va="center", fontsize=11, weight="bold")
+    axis.text(3.02, channel_count + 0.45, "MUX", ha="center",
+              va="center", fontsize=12, weight="bold")
+    axis.text(6.98, channel_count + 0.45, "DEMUX", ha="center",
+              va="center", fontsize=12, weight="bold")
+
+    axis.add_patch(plt.Rectangle(
+        (x_fiber[0], center_y - 0.36),
+        x_fiber[1] - x_fiber[0],
+        0.72,
+        facecolor="#e8eef5",
+        edgecolor="#607d9b",
+        linewidth=1.5,
+        zorder=0,
+    ))
+    axis.text(
+        (x_fiber[0] + x_fiber[1]) / 2.0,
+        center_y + 0.5,
+        f"ONE FIBER  |  {result['fiber_length_km']:g} km",
+        ha="center",
+        va="bottom",
+        fontsize=9,
+        color="#34495e",
+        weight="bold",
+    )
+
+    mux_polygon = np.array([
+        [x_mux[0], lane_y[0] + 0.35],
+        [x_mux[1], center_y + 0.30],
+        [x_mux[1], center_y - 0.30],
+        [x_mux[0], lane_y[-1] - 0.35],
+    ])
+    demux_polygon = np.array([
+        [x_demux[0], center_y + 0.30],
+        [x_demux[1], lane_y[0] + 0.35],
+        [x_demux[1], lane_y[-1] - 0.35],
+        [x_demux[0], center_y - 0.30],
+    ])
+    axis.add_patch(plt.Polygon(
+        mux_polygon, closed=True, facecolor="#b9e8ed",
+        edgecolor="#236b78", linewidth=2, zorder=2
+    ))
+    axis.add_patch(plt.Polygon(
+        demux_polygon, closed=True, facecolor="#b9e8ed",
+        edgecolor="#236b78", linewidth=2, zorder=2
+    ))
+
+    for index, (wavelength, color, y) in enumerate(zip(wavelengths, colors, lane_y)):
+        axis.add_patch(plt.Rectangle(
+            (x_transmitter[0], y - 0.20), 0.9, 0.4,
+            facecolor="#f4f6f8", edgecolor="#34495e", linewidth=1.2, zorder=3
+        ))
+        axis.text(x_transmitter[0] + 0.45, y,
+                  f"TX {index + 1}\n{wavelength:g} nm",
+                  ha="center", va="center", fontsize=8, zorder=4)
+        axis.add_patch(plt.Rectangle(
+            (x_receiver[0], y - 0.20), 0.9, 0.4,
+            facecolor="#f4f6f8", edgecolor="#34495e", linewidth=1.2, zorder=3
+        ))
+        axis.text(x_receiver[0] + 0.45, y,
+                  f"RX {index + 1}\n{wavelength:g} nm",
+                  ha="center", va="center", fontsize=8, zorder=4)
+
+        route_x = [
+            x_transmitter[1],
+            x_mux[0],
+            x_mux[1],
+            x_fiber[1],
+            x_demux[1],
+            x_receiver[0],
+        ]
+        route_y = [
+            y,
+            y,
+            center_y + bundle_offsets[index],
+            center_y + bundle_offsets[index],
+            y,
+            y,
+        ]
+        route_lines.append((np.asarray(route_x), np.asarray(route_y)))
+        axis.plot(route_x, route_y, color=color, alpha=0.20, linewidth=2.4, zorder=1)
+        axis.plot(
+            [x_fiber[0], x_fiber[1]],
+            [center_y + bundle_offsets[index]] * 2,
+            color=color,
+            alpha=0.35,
+            linewidth=1.5,
+            zorder=2,
+        )
+
+    flow_y = 0.28
+    axis.annotate(
+        "", xy=(x_receiver[1], flow_y), xytext=(x_transmitter[0], flow_y),
+        arrowprops={"arrowstyle": "->", "color": "#566573", "lw": 1.5},
+    )
+    axis.text(5.0, flow_y + 0.05, "SIGNAL FLOW", ha="center", va="bottom",
+              fontsize=9, color="#566573", weight="bold")
+    stage_text = axis.text(
+        5.0, 0.64, "",
+        ha="center", va="center", fontsize=10, color="#1f4e79", weight="bold"
+    )
+    active_lines = [
+        axis.plot([], [], color=color, linewidth=3.0, zorder=5)[0]
+        for color in colors
+    ]
 
     def update(frame):
-        distance = fiber_length_km * frame / 59.0
-        for index, line in enumerate(lines):
-            phase = 2.0 * np.pi * (z / (10.0 + index * 1.7) - distance / (50.0 + index * 2.0))
-            line.set_data(z, np.sin(phase))
-        return lines
+        progress = frame / 119.0
+        if progress < 0.22:
+            stage = "1/5  Transmitters -> MUX"
+        elif progress < 0.34:
+            stage = "2/5  MUX combines channels"
+        elif progress < 0.70:
+            stage = "3/5  Together in shared fiber"
+        elif progress < 0.82:
+            stage = "4/5  DEMUX separates wavelengths"
+        else:
+            stage = "5/5  Channels -> receivers"
+        stage_text.set_text(stage)
 
-    animation = FuncAnimation(figure, update, frames=60, interval=50, blit=True)
+        for index, ((route_x, route_y), line) in enumerate(zip(route_lines, active_lines)):
+            path_lengths = np.hypot(np.diff(route_x), np.diff(route_y))
+            cumulative = np.concatenate(([0.0], np.cumsum(path_lengths)))
+            total_length = cumulative[-1]
+            traveled = progress * total_length
+            sample_distances = np.linspace(0.0, traveled, max(2, int(160 * progress)))
+            sample_x = np.interp(sample_distances, cumulative, route_x)
+            sample_y = np.interp(sample_distances, cumulative, route_y)
+            line.set_data(sample_x, sample_y)
+        return (*active_lines, stage_text)
+
+    animation = FuncAnimation(
+        figure, update, frames=120, interval=55, blit=True, repeat=True
+    )
     prepare_output_dirs()
-    animation.save(ANIMATIONS_DIR / "wdm_co_propagation.gif", writer=PillowWriter(fps=20))
+    animation_path = ANIMATIONS_DIR / "wdm_co_propagation.gif"
+    animation.save(animation_path, writer=PillowWriter(fps=20))
     plt.close(figure)
+    with Image.open(animation_path) as saved_animation:
+        frame_indices = [0, 30, 55, 85, 105, saved_animation.n_frames - 1]
+        thumbnails = []
+        for frame_index in frame_indices:
+            saved_animation.seek(frame_index)
+            thumbnail = saved_animation.convert("RGB")
+            thumbnail.thumbnail((600, 225))
+            thumbnails.append(thumbnail.copy())
+
+        storyboard = Image.new("RGB", (1800, 450), "white")
+        for index, thumbnail in enumerate(thumbnails):
+            x_position = (index % 3) * 600
+            y_position = (index // 3) * 225
+            storyboard.paste(thumbnail, (x_position, y_position))
+        storyboard.save(GRAPHS_DIR / "wdm_animation_storyboard.png")
+
+        saved_animation.seek(saved_animation.n_frames - 1)
+        saved_animation.convert("RGB").save(
+            GRAPHS_DIR / "wdm_system_diagram.png"
+        )
 
 
 if __name__ == "__main__":

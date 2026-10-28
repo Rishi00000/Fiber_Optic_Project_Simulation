@@ -18,6 +18,10 @@ output folders and save labeled PNG plots, CSV data, and educational GIF
 animations. They use base MATLAB plotting, `getframe`, and `imwrite`
 functionality only.
 
+The WDM animation shows five stages of the full channel route: separate
+transmitters, MUX combining, shared-fiber propagation, DEMUX separation, and
+the corresponding receivers.
+
 ## Model conventions and assumptions
 
 - **Isolator:** Power is in mW. The scalar model uses 0.5 dB forward insertion
