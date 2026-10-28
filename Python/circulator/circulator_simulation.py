@@ -15,6 +15,10 @@ ROUTES = {0: 1, 1: 2, 2: 0}
 
 def transmission_matrix(insertion_loss_db=0.6, isolation_db=35.0):
     """Return a power-normalized 3x3 matrix; rows are outputs, columns inputs."""
+    if not np.isfinite(insertion_loss_db) or insertion_loss_db < 0:
+        raise ValueError("insertion_loss_db must be finite and non-negative.")
+    if not np.isfinite(isolation_db) or isolation_db < 0:
+        raise ValueError("isolation_db must be finite and non-negative.")
     matrix = np.zeros((3, 3), dtype=complex)
     desired_power = 10.0 ** (-insertion_loss_db / 10.0)
     leakage_power = 10.0 ** (-isolation_db / 10.0)
@@ -29,13 +33,15 @@ def transmission_matrix(insertion_loss_db=0.6, isolation_db=35.0):
 def route_power(input_port, input_power_mw=1.0, matrix=None):
     if input_port not in ROUTES:
         raise ValueError("input_port must be 0, 1, or 2")
+    if not np.isfinite(input_power_mw) or input_power_mw < 0:
+        raise ValueError("input_power_mw must be finite and non-negative.")
     matrix = transmission_matrix() if matrix is None else matrix
     return input_power_mw * np.abs(matrix[:, input_port]) ** 2
 
 
-def run():
+def run(input_power_mw=1.0, insertion_loss_db=0.6, isolation_db=35.0):
     prepare_output_dirs()
-    matrix = transmission_matrix()
+    matrix = transmission_matrix(insertion_loss_db, isolation_db)
     figure, axes = plt.subplots(1, 2, figsize=(10, 4.2))
     image = axes[0].imshow(np.abs(matrix) ** 2, cmap="viridis", vmin=0, vmax=1)
     axes[0].set(xticks=range(3), yticks=range(3),
@@ -56,7 +62,7 @@ def run():
         axes[1].annotate("", xy=end, xytext=start,
                          arrowprops={"arrowstyle": "->", "lw": 2.5, "color": "#d1495b",
                                      "connectionstyle": "arc3,rad=0.15"})
-    axes[1].set_title("Ideal cyclic routing: 1 → 2 → 3 → 1")
+    axes[1].set_title("Three-port cyclic routing: 1 → 2 → 3 → 1")
     axes[1].set_xlim(0, 1)
     axes[1].set_ylim(0, 1)
     figure.suptitle("Three-port fiber optic circulator")
@@ -64,10 +70,13 @@ def run():
 
     with (DATA_DIR / "circulator_results.csv").open("w", newline="", encoding="utf-8") as file:
         writer = csv.writer(file)
-        writer.writerow(["output_port", "input_port", "power_transmission"])
+        writer.writerow(["output_port", "input_port", "power_transmission",
+                         "input_power_mw", "output_power_mw"])
         for row in range(3):
             for column in range(3):
-                writer.writerow([row + 1, column + 1, abs(matrix[row, column]) ** 2])
+                transmission = abs(matrix[row, column]) ** 2
+                writer.writerow([row + 1, column + 1, transmission,
+                                 input_power_mw, input_power_mw * transmission])
     create_animation(positions)
     return matrix
 

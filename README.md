@@ -11,7 +11,7 @@ not commercial component designs or experimentally validated measurements.
   polarization model with a non-reciprocal Faraday rotator.
 - **Circulator:** ideal three-port cyclic routing and a lossy/leaky power
   transfer matrix.
-- **WDM:** four wavelength channels, complex-envelope multiplexing, fiber
+- **WDM:** configurable wavelength channels, complex-envelope multiplexing, fiber
   attenuation and second-order chromatic dispersion, and frequency-domain
   demultiplexing.
 - Labeled plots, CSV result tables, and educational GIF animations are generated
@@ -32,6 +32,14 @@ python -m Python.main
 In VS Code, select `.venv\Scripts\python.exe` as the Python interpreter. If
 PowerShell blocks activation, run the program directly with
 `.venv\Scripts\python.exe -m Python.main`.
+
+The run-all command interactively asks for simulation parameters. Press Enter
+at a prompt to use its displayed default. It collects isolator power/loss and
+polarization angles, circulator input power and loss/isolation, then WDM
+channel count and each wavelength, fiber length/loss/dispersion, and modulation
+frequency. The circulator remains a three-port cyclic device. WDM wavelengths
+must be unique positive values; the run reports a clear validation error if
+the requested channels exceed the simulation sample-rate bandwidth.
 
 The simulations use NumPy and Matplotlib; Pillow enables GIF export. No SciPy,
 special MATLAB toolbox, or commercial optical simulator is required.
@@ -111,11 +119,12 @@ The academic-style result summary and implementation comparison are in
 
 ## Reproducibility and interpretation
 
-`python -m Python.main` creates PNG figures in `Results/Graphs/`, GIFs in
+`python -m Python.main` prompts for values and creates PNG figures in `Results/Graphs/`, GIFs in
 `Results/Animations/`, and numerical tables in `Results/Data/`. The GIFs are
 schematic visualizations tied to each model; they do not represent measured
 electromagnetic field propagation at literal optical carrier frequency.
-MATLAB can be run with `run('MATLAB/run_all.m')` from the project root. If
+MATLAB can be run with `run('MATLAB/run_all.m')` from the project root; it
+prompts for equivalent parameters and also offers the defaults. If
 MATLAB is unavailable, the Python implementation remains independently
 executable.
 

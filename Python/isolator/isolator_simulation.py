@@ -12,6 +12,12 @@ from Python.common.plotting_utils import prepare_output_dirs, save_figure
 
 def basic_model(input_power_mw=10.0, insertion_loss_db=0.5, isolation_db=30.0):
     """Return idealized forward/reverse power and device metrics."""
+    if not np.isfinite(input_power_mw) or input_power_mw <= 0:
+        raise ValueError("input_power_mw must be a finite positive value.")
+    if not np.isfinite(insertion_loss_db) or insertion_loss_db < 0:
+        raise ValueError("insertion_loss_db must be finite and non-negative.")
+    if not np.isfinite(isolation_db) or isolation_db < 0:
+        raise ValueError("isolation_db must be finite and non-negative.")
     forward_mw = input_power_mw * 10.0 ** (-insertion_loss_db / 10.0)
     reverse_mw = input_power_mw * 10.0 ** (-isolation_db / 10.0)
     return {
@@ -41,6 +47,8 @@ def jones_transmission(input_angle_deg, faraday_angle_deg, analyzer_angle_deg):
     The Faraday rotation has the same signed rotation in either propagation
     direction. Losses other than polarization rejection are excluded.
     """
+    if not np.all(np.isfinite([input_angle_deg, faraday_angle_deg, analyzer_angle_deg])):
+        raise ValueError("Polarization angles must be finite.")
     input_angle = np.deg2rad(input_angle_deg)
     faraday_angle = np.deg2rad(faraday_angle_deg)
     analyzer_angle = np.deg2rad(analyzer_angle_deg)
@@ -52,14 +60,23 @@ def jones_transmission(input_angle_deg, faraday_angle_deg, analyzer_angle_deg):
     return float(abs(forward_field) ** 2), float(abs(reverse_output) ** 2)
 
 
-def run():
+def run(
+    input_power_mw=10.0,
+    insertion_loss_db=0.5,
+    isolation_db=30.0,
+    input_angle_deg=0.0,
+    faraday_angle_deg=45.0,
+    analyzer_angle_deg=45.0,
+):
     prepare_output_dirs()
-    basic = basic_model()
-    angle_deg = np.linspace(0.0, 90.0, 361)
+    basic = basic_model(input_power_mw, insertion_loss_db, isolation_db)
+    angle_deg = np.linspace(0.0, 180.0, 721)
     forward = np.zeros_like(angle_deg)
     reverse = np.zeros_like(angle_deg)
     for index, angle in enumerate(angle_deg):
-        forward[index], reverse[index] = jones_transmission(0.0, angle, 45.0)
+        forward[index], reverse[index] = jones_transmission(
+            input_angle_deg, angle, analyzer_angle_deg
+        )
 
     figure, axes = plt.subplots(1, 2, figsize=(11, 4.5))
     axes[0].bar(
@@ -72,9 +89,17 @@ def run():
     axes[0].grid(axis="y", alpha=0.25)
     axes[1].plot(angle_deg, 10.0 * np.log10(np.maximum(forward, 1e-12)), label="Forward")
     axes[1].plot(angle_deg, 10.0 * np.log10(np.maximum(reverse, 1e-12)), label="Reverse")
-    axes[1].axvline(45.0, color="gray", linestyle="--", linewidth=1)
-    axes[1].set(xlabel="Faraday rotation (degrees)", ylabel="Normalized power (dB)")
-    axes[1].set_title("Jones model with 45° analyzer")
+    axes[1].axvline(
+        np.mod(faraday_angle_deg, 180.0),
+        color="gray",
+        linestyle="--",
+        linewidth=1,
+    )
+    axes[1].set(
+        xlabel="Faraday rotation (degrees; polarization repeats every 180°)",
+        ylabel="Normalized power (dB)",
+    )
+    axes[1].set_title(f"Jones model with {analyzer_angle_deg:g}° analyzer")
     axes[1].set_ylim(-80, 2)
     axes[1].grid(alpha=0.25)
     axes[1].legend()
@@ -90,14 +115,20 @@ def run():
         writer.writerow(["insertion_loss", basic["insertion_loss_db"], "dB"])
         writer.writerow(["isolation", basic["isolation_db"], "dB"])
         writer.writerow(["forward_reverse_contrast", basic["forward_reverse_contrast_db"], "dB"])
-        writer.writerow(["jones_forward_at_45deg", jones_transmission(0, 45, 45)[0], "fraction"])
-        writer.writerow(["jones_reverse_at_45deg", jones_transmission(0, 45, 45)[1], "fraction"])
+        forward_jones, reverse_jones = jones_transmission(
+            input_angle_deg, faraday_angle_deg, analyzer_angle_deg
+        )
+        writer.writerow(["input_polarizer_angle", input_angle_deg, "degrees"])
+        writer.writerow(["faraday_rotation_angle", faraday_angle_deg, "degrees"])
+        writer.writerow(["analyzer_angle", analyzer_angle_deg, "degrees"])
+        writer.writerow(["jones_forward_at_selected_angles", forward_jones, "fraction"])
+        writer.writerow(["jones_reverse_at_selected_angles", reverse_jones, "fraction"])
 
-    create_animation()
+    create_animation(input_angle_deg, faraday_angle_deg, analyzer_angle_deg)
     return basic
 
 
-def create_animation():
+def create_animation(input_angle_deg=0.0, faraday_angle_deg=45.0, analyzer_angle_deg=45.0):
     figure, axis = plt.subplots(figsize=(9, 3.2))
     axis.set(xlim=(-0.1, 1.1), ylim=(-0.42, 0.48), yticks=[], xticks=[])
     axis.set_title("Isolator: forward transmission and reverse polarization rejection")
@@ -121,10 +152,14 @@ def create_animation():
         forward_dot.set_data([forward_x], [-0.07])
         reverse_position = reverse_x if reverse_x >= 0.50 else 0.50
         reverse_dot.set_data([reverse_position], [-0.20])
-        angle = np.deg2rad(min(45.0, max(0.0, (forward_x - 0.15) / 0.35 * 45.0)))
+        rotation_progress = min(1.0, max(0.0, (forward_x - 0.15) / 0.35))
+        angle = np.deg2rad(input_angle_deg + rotation_progress * faraday_angle_deg)
         polarization.set_data([0.5, 0.5 + 0.11 * np.cos(angle)],
                               [0.08, 0.08 + 0.11 * np.sin(angle)])
-        status.set_text("Forward: rotated to analyzer axis and transmitted | Reverse: same-sign rotation, blocked")
+        status.set_text(
+            f"Forward: {input_angle_deg:g}° + {faraday_angle_deg:g}° rotation; "
+            f"analyzer: {analyzer_angle_deg:g}°"
+        )
         return forward_dot, reverse_dot, polarization, status
 
     animation = FuncAnimation(figure, update, frames=60, interval=50, blit=True)

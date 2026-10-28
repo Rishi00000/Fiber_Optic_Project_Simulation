@@ -39,16 +39,18 @@ The detailed equations and limitations are in
 | Circulator | 3 ports, 0.6 dB routed-path loss, 35 dB unwanted-port attenuation | Routed power transmission 0.87096; unwanted-port transmission 0.0003162 |
 | WDM | 1530/1540/1550/1560 nm, 50 km, 0.2 dB/km, \(\beta_2=-21.7\) ps²/km | 10 dB fiber power loss (0.1 power factor); four separated output envelopes |
 
-The Python regression suite currently passes all five numerical tests. The
+The Python regression suite currently passes all thirteen numerical tests. The
 corresponding CSV tables and generated figures/GIFs are saved in `Results/`.
 No physical measurements or laboratory calibration data were supplied.
 
 ## Python/MATLAB comparison
 
-The MATLAB scripts use the same isolator input power, insertion-loss and
-isolation values; the same circulator routing, insertion loss, and unwanted
-port attenuation; and the same WDM wavelengths, sample count/rate, attenuation,
-dispersion coefficient, and frequency-domain channel masks. The WDM FFT and
+Both implementations prompt for model parameters and offer matching default
+values. The MATLAB scripts use the same isolator input power, insertion-loss
+and isolation values; the same circulator routing, insertion loss, and
+unwanted-port attenuation; and the same WDM wavelengths, sample count/rate,
+attenuation, dispersion coefficient, modulation, and frequency-domain channel
+masks. The WDM FFT and
 attenuation equations are implemented with each language's native FFT
 conventions.
 
