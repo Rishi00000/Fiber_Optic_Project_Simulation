@@ -1,0 +1,116 @@
+FIBER OPTIC SIMULATION PROJECT
+RUN INSTRUCTIONS AND OUTPUT GUIDE
+=================================
+
+PROJECT FOLDER
+--------------
+Open PowerShell or the VS Code terminal in the project root folder.
+
+
+PYTHON: FIRST-TIME SETUP (WINDOWS)
+---------------------------------
+Create a virtual environment:
+
+    python -m venv .venv
+
+Install the project's Python libraries:
+
+    .\.venv\Scripts\python.exe -m pip install -r Python\requirements.txt
+
+The project uses NumPy, Matplotlib, and Pillow. No global installation is
+required.
+
+
+RUN ALL PYTHON SIMULATIONS
+--------------------------
+From the project root, run:
+
+    .\.venv\Scripts\python.exe -m Python.main
+
+The command runs the isolator, circulator, and WDM models. It recreates the
+plots, animations, and CSV result files in Results.
+
+To run one model only:
+
+    .\.venv\Scripts\python.exe -m Python.isolator.isolator_simulation
+    .\.venv\Scripts\python.exe -m Python.circulator.circulator_simulation
+    .\.venv\Scripts\python.exe -m Python.wdm.wdm_simulation
+
+
+RUN PYTHON TESTS
+----------------
+From the project root:
+
+    .\.venv\Scripts\python.exe -m unittest discover -s Python\tests -v
+
+Verified result: all 5 tests pass.
+
+
+PYTHON OUTPUTS
+--------------
+Latest run printed:
+
+    Isolator: {'input_power_mw': 10.0,
+               'forward_power_mw': 8.912509381337456,
+               'reverse_power_mw': 0.01,
+               'insertion_loss_db': 0.5,
+               'isolation_db': 30.0,
+               'forward_reverse_contrast_db': 29.5}
+
+    Circulator power transmission matrix:
+    [[3.16227766e-04 3.16227766e-04 8.70963590e-01]
+     [8.70963590e-01 3.16227766e-04 3.16227766e-04]
+     [3.16227766e-04 8.70963590e-01 3.16227766e-04]]
+
+    WDM attenuation factor: 0.1
+
+Interpretation:
+- Isolator: with 10 mW input, the 0.5 dB forward insertion loss produces
+  about 8.9125 mW. The 30 dB reverse attenuation gives 0.01 mW reverse output.
+- Circulator: matrix rows are output ports and columns are input ports. The
+  large entries implement port 1 -> 2, port 2 -> 3, and port 3 -> 1. The
+  routed power fraction is about 0.87096; unwanted-port fraction is 0.0003162.
+- WDM: four channels at 1530, 1540, 1550, and 1560 nm propagate through 50 km
+  of fiber. At 0.2 dB/km the simulated power transmission is 0.1 (10 dB loss).
+
+Generated files:
+
+    Results\Graphs\isolator_transmission.png
+    Results\Graphs\circulator_transmission.png
+    Results\Graphs\wdm_signals_and_spectrum.png
+    Results\Graphs\wdm_spectrum_before_after.png
+    Results\Graphs\wdm_power_vs_distance.png
+
+    Results\Animations\isolator_propagation.gif
+    Results\Animations\circulator_routing.gif
+    Results\Animations\wdm_co_propagation.gif
+
+    Results\Data\isolator_results.csv
+    Results\Data\circulator_results.csv
+    Results\Data\wdm_results.csv
+
+Open the PNG and GIF files directly from VS Code's Explorer or Windows File
+Explorer. The animations are illustrative schematics, not literal optical
+carrier field visualizations.
+
+
+MATLAB
+------
+Open MATLAB with its current folder set to the project root, then run:
+
+    run('MATLAB/run_all.m')
+
+The scripts are under MATLAB\Isolator, MATLAB\Circulator, and MATLAB\WDM.
+They use base MATLAB features and are intended to create MATLAB-specific
+plots, GIFs, and a WDM CSV in the same Results folders. MATLAB/Octave was
+not installed in the environment where this project was last run, so MATLAB
+execution and its outputs have not been verified there.
+
+
+MODEL LIMITATIONS
+-----------------
+These are educational simulations, not experimentally validated component
+models or commercial link predictions. The Jones isolator is idealized; the
+circulator is represented by a phenomenological transfer matrix; the WDM model
+omits noise, nonlinear effects, and practical filter and receiver behavior.
+See Documentation\Mathematical_Models.md for equations and assumptions.
