@@ -16,14 +16,45 @@ ATTENUATION_DB_PER_KM = 0.2
 BETA2_PS2_PER_KM = -21.7
 
 
-def simulate_wdm(sample_count=4096, sample_rate_hz=16e12, fiber_length_km=FIBER_LENGTH_KM):
-    """Generate, multiplex, propagate, and ideally demultiplex four optical envelopes."""
-    wavelengths_m = CHANNEL_WAVELENGTHS_NM * 1e-9
+def simulate_wdm(
+    sample_count=4096,
+    sample_rate_hz=16e12,
+    fiber_length_km=FIBER_LENGTH_KM,
+    attenuation_db_per_km=ATTENUATION_DB_PER_KM,
+    beta2_ps2_per_km=BETA2_PS2_PER_KM,
+    wavelengths_nm=None,
+    modulation_hz=18e9,
+):
+    """Generate, multiplex, propagate, and ideally demultiplex optical envelopes."""
+    wavelengths_nm = (
+        CHANNEL_WAVELENGTHS_NM.copy()
+        if wavelengths_nm is None
+        else np.asarray(wavelengths_nm, dtype=float)
+    )
+    if wavelengths_nm.ndim != 1 or len(wavelengths_nm) == 0:
+        raise ValueError("Provide at least one wavelength.")
+    if not np.all(np.isfinite(wavelengths_nm)) or np.any(wavelengths_nm <= 0):
+        raise ValueError("Wavelengths must be finite positive values.")
+    if len(np.unique(wavelengths_nm)) != len(wavelengths_nm):
+        raise ValueError("Wavelengths must be unique.")
+    if sample_count < 2:
+        raise ValueError("sample_count must be at least 2.")
+    if not np.isfinite(sample_rate_hz) or sample_rate_hz <= 0:
+        raise ValueError("sample_rate_hz must be finite and positive.")
+    if not np.isfinite(fiber_length_km) or fiber_length_km < 0:
+        raise ValueError("fiber_length_km must be finite and non-negative.")
+    if not np.isfinite(attenuation_db_per_km) or attenuation_db_per_km < 0:
+        raise ValueError("Fiber length and attenuation must be non-negative.")
+    if not np.isfinite(beta2_ps2_per_km):
+        raise ValueError("beta2_ps2_per_km must be finite.")
+    if not np.isfinite(modulation_hz) or modulation_hz < 0:
+        raise ValueError("Modulation frequency must be non-negative.")
+
+    wavelengths_m = wavelengths_nm * 1e-9
     optical_frequencies_hz = C0_M_PER_S / wavelengths_m
     reference_frequency_hz = float(np.mean(optical_frequencies_hz))
     offsets_hz = optical_frequencies_hz - reference_frequency_hz
     time_s = np.arange(sample_count) / sample_rate_hz
-    modulation_hz = 18e9
     channel_fields = np.array([
         np.exp(2j * np.pi * offset * time_s)
         * (1.0 + 0.25 * np.cos(2.0 * np.pi * modulation_hz * time_s))
@@ -32,16 +63,28 @@ def simulate_wdm(sample_count=4096, sample_rate_hz=16e12, fiber_length_km=FIBER_
     multiplexed = np.sum(channel_fields, axis=0)
 
     frequency_offset_hz = np.fft.fftfreq(sample_count, d=1.0 / sample_rate_hz)
-    beta2_s2_per_m = BETA2_PS2_PER_KM * 1e-24 / 1000.0
+    if np.max(np.abs(offsets_hz)) + modulation_hz >= sample_rate_hz / 2.0:
+        raise ValueError(
+            "Channel offsets and modulation exceed the sample rate's Nyquist limit."
+        )
+    spacing_hz = (
+        float(np.min(np.diff(np.sort(offsets_hz))))
+        if len(offsets_hz) > 1
+        else sample_rate_hz
+    )
+    channel_width_hz = 0.45 * spacing_hz
+    if modulation_hz >= channel_width_hz:
+        raise ValueError(
+            "Modulation frequency must fit inside the WDM channel filter bandwidth."
+        )
+    beta2_s2_per_m = beta2_ps2_per_km * 1e-24 / 1000.0
     length_m = fiber_length_km * 1000.0
     dispersion_phase = np.exp(-1j * 2.0 * np.pi**2 * beta2_s2_per_m
                               * length_m * frequency_offset_hz**2)
-    power_attenuation = 10.0 ** (-ATTENUATION_DB_PER_KM * fiber_length_km / 10.0)
+    power_attenuation = 10.0 ** (-attenuation_db_per_km * fiber_length_km / 10.0)
     field_attenuation = np.sqrt(power_attenuation)
     transmitted = np.fft.ifft(np.fft.fft(multiplexed) * dispersion_phase) * field_attenuation
 
-    spacing_hz = float(np.min(np.diff(np.sort(offsets_hz))))
-    channel_width_hz = 0.45 * spacing_hz
     spectrum = np.fft.fft(transmitted)
     channel_outputs = []
     for offset in offsets_hz:
@@ -49,7 +92,7 @@ def simulate_wdm(sample_count=4096, sample_rate_hz=16e12, fiber_length_km=FIBER_
         channel_outputs.append(np.fft.ifft(spectrum * mask))
     return {
         "time_s": time_s,
-        "wavelengths_nm": CHANNEL_WAVELENGTHS_NM.copy(),
+        "wavelengths_nm": wavelengths_nm.copy(),
         "optical_frequencies_hz": optical_frequencies_hz,
         "offsets_hz": offsets_hz,
         "channel_fields": channel_fields,
@@ -59,12 +102,27 @@ def simulate_wdm(sample_count=4096, sample_rate_hz=16e12, fiber_length_km=FIBER_
         "sample_rate_hz": sample_rate_hz,
         "fiber_length_km": fiber_length_km,
         "power_attenuation": power_attenuation,
+        "attenuation_db_per_km": attenuation_db_per_km,
+        "beta2_ps2_per_km": beta2_ps2_per_km,
+        "modulation_hz": modulation_hz,
     }
 
 
-def run():
+def run(
+    wavelengths_nm=None,
+    fiber_length_km=FIBER_LENGTH_KM,
+    attenuation_db_per_km=ATTENUATION_DB_PER_KM,
+    beta2_ps2_per_km=BETA2_PS2_PER_KM,
+    modulation_hz=18e9,
+):
     prepare_output_dirs()
-    result = simulate_wdm()
+    result = simulate_wdm(
+        fiber_length_km=fiber_length_km,
+        attenuation_db_per_km=attenuation_db_per_km,
+        beta2_ps2_per_km=beta2_ps2_per_km,
+        wavelengths_nm=wavelengths_nm,
+        modulation_hz=modulation_hz,
+    )
     time_ps = result["time_s"] * 1e12
     figure, axes = plt.subplots(2, 2, figsize=(12, 8))
     for index, channel in enumerate(result["channel_fields"]):
@@ -80,50 +138,67 @@ def run():
     axes[1, 0].plot(offsets_ghz[order], 10.0 * np.log10(spectrum[order] + 1e-15))
     axes[1, 0].set(title="Output spectrum (baseband around optical carrier)",
                    xlabel="Offset from reference carrier (GHz)", ylabel="Relative power (dB)")
-    axes[1, 0].set_xlim(-2500, 2500)
+    spectrum_limit_ghz = (
+        np.max(np.abs(result["offsets_hz"])) + result["modulation_hz"]
+    ) / 1e9 + 50.0
+    axes[1, 0].set_xlim(-spectrum_limit_ghz, spectrum_limit_ghz)
 
     for index, channel in enumerate(result["channel_outputs"]):
         axes[1, 1].plot(time_ps[:300], channel.real[:300],
                         label=f"{result['wavelengths_nm'][index]:.0f} nm")
     axes[1, 1].set(title="Demultiplexed channel outputs", xlabel="Time (ps)", ylabel="Real envelope")
     axes[1, 1].legend(ncol=2, fontsize=8)
-    figure.suptitle("Four-channel WDM: complex-envelope transmission through fiber")
+    figure.suptitle(
+        f"{len(result['wavelengths_nm'])}-channel WDM: complex-envelope transmission"
+    )
     save_figure(figure, "wdm_signals_and_spectrum.png")
 
     figure, axis = plt.subplots(figsize=(8, 4.5))
     for field, label, color in (
         (result["multiplexed"], "Before fiber", "#177e89"),
-        (result["transmitted"], "After 50 km fiber", "#d1495b"),
+        (result["transmitted"], f"After {fiber_length_km:g} km fiber", "#d1495b"),
     ):
         power_spectrum = np.abs(np.fft.fft(field)) ** 2
         axis.plot(offsets_ghz[order],
                   10.0 * np.log10(power_spectrum[order] + 1e-15),
                   label=label, color=color, alpha=0.85)
-    axis.set(title="WDM optical spectrum before and after the fiber",
+    axis.set(title=f"WDM optical spectrum before and after {fiber_length_km:g} km of fiber",
              xlabel="Offset from reference optical carrier (GHz)", ylabel="Relative power (dB)")
-    axis.set_xlim(-2500, 2500)
+    axis.set_xlim(-spectrum_limit_ghz, spectrum_limit_ghz)
     axis.grid(alpha=0.2)
     axis.legend()
     save_figure(figure, "wdm_spectrum_before_after.png")
 
-    lengths_km = np.linspace(0.0, 100.0, 101)
-    powers_dbm = -ATTENUATION_DB_PER_KM * lengths_km
+    max_length_km = max(100.0, fiber_length_km)
+    lengths_km = np.linspace(0.0, max_length_km, 101)
+    powers_dbm = -attenuation_db_per_km * lengths_km
     figure, axis = plt.subplots(figsize=(7, 4.5))
     axis.plot(lengths_km, powers_dbm, color="#177e89")
-    axis.scatter([FIBER_LENGTH_KM], [-ATTENUATION_DB_PER_KM * FIBER_LENGTH_KM], color="#d1495b", zorder=3)
-    axis.set(title="WDM power attenuation versus fiber length", xlabel="Fiber length (km)",
+    axis.scatter([fiber_length_km], [-attenuation_db_per_km * fiber_length_km], color="#d1495b", zorder=3)
+    axis.set(title="WDM power attenuation versus fiber length",
+             xlabel="Fiber length (km)",
              ylabel="Relative power (dB)")
     axis.grid(alpha=0.25)
     save_figure(figure, "wdm_power_vs_distance.png")
 
     with (DATA_DIR / "wdm_results.csv").open("w", newline="", encoding="utf-8") as file:
         writer = csv.writer(file)
-        writer.writerow(["channel", "wavelength_nm", "optical_frequency_thz", "fiber_output_power_fraction"])
+        writer.writerow([
+            "channel",
+            "wavelength_nm",
+            "optical_frequency_thz",
+            "fiber_length_km",
+            "attenuation_db_per_km",
+            "beta2_ps2_per_km",
+            "fiber_output_power_fraction",
+        ])
         channel_input_power = np.mean(np.abs(result["channel_fields"]) ** 2, axis=1)
         for index, wavelength in enumerate(result["wavelengths_nm"]):
             output_power = channel_input_power[index] * result["power_attenuation"]
             writer.writerow([index + 1, wavelength,
-                             result["optical_frequencies_hz"][index] / 1e12, output_power])
+                             result["optical_frequencies_hz"][index] / 1e12,
+                             fiber_length_km, attenuation_db_per_km,
+                             beta2_ps2_per_km, output_power])
     create_animation(result)
     return result
 
@@ -132,17 +207,19 @@ def create_animation(result=None):
     if result is None:
         result = simulate_wdm(sample_count=512)
     figure, axis = plt.subplots(figsize=(8, 3.4))
-    z = np.linspace(0.0, 50.0, 300)
-    colors = ["#d1495b", "#f4a261", "#177e89", "#6a4c93"]
+    fiber_length_km = result["fiber_length_km"]
+    z = np.linspace(0.0, fiber_length_km, 300)
+    colors = plt.get_cmap("tab10")(np.linspace(0, 1, len(result["wavelengths_nm"])))
     lines = [axis.plot([], [], color=color, linewidth=1.4, label=f"{wavelength:.0f} nm")[0]
              for color, wavelength in zip(colors, result["wavelengths_nm"])]
-    axis.set(xlim=(0, 50), ylim=(-1.5, 1.5), xlabel="Distance along common fiber (km)",
+    axis.set(xlim=(0, max(fiber_length_km, 1e-9)), ylim=(-1.5, 1.5),
+             xlabel="Distance along common fiber (km)",
              ylabel="Illustrative field oscillation")
-    axis.set_title("Four wavelength channels co-propagating in one fiber")
+    axis.set_title(f"{len(result['wavelengths_nm'])} WDM channels co-propagating in one fiber")
     axis.legend(ncol=4, fontsize=8, loc="upper right")
 
     def update(frame):
-        distance = 50.0 * frame / 59.0
+        distance = fiber_length_km * frame / 59.0
         for index, line in enumerate(lines):
             phase = 2.0 * np.pi * (z / (10.0 + index * 1.7) - distance / (50.0 + index * 2.0))
             line.set_data(z, np.sin(phase))

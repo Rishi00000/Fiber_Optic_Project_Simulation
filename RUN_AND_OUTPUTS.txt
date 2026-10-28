@@ -30,11 +30,28 @@ From the project root, run:
 The command runs the isolator, circulator, and WDM models. It recreates the
 plots, animations, and CSV result files in Results.
 
+Before running, it asks for parameters. Press Enter to accept each displayed
+default:
+
+    Isolator: input power, insertion loss, reverse isolation,
+              input polarizer angle, Faraday rotation, analyzer angle
+    Circulator: input power per port, routed insertion loss,
+                unwanted-port attenuation (circulator stays three-port)
+    WDM: channel count, wavelength for every channel, fiber length,
+         attenuation per km, beta2 dispersion, modulation frequency
+
+WDM wavelengths must be unique and positive. The simulation checks that the
+requested wavelengths and modulation fit its sampling and channel-filter
+bandwidth; if they do not, it asks for the WDM settings again.
+
 To run one model only:
 
     .\.venv\Scripts\python.exe -m Python.isolator.isolator_simulation
     .\.venv\Scripts\python.exe -m Python.circulator.circulator_simulation
     .\.venv\Scripts\python.exe -m Python.wdm.wdm_simulation
+
+The individual model modules run with their example defaults. Use the all-model
+entry point above to enter custom values interactively.
 
 
 RUN PYTHON TESTS
@@ -43,7 +60,7 @@ From the project root:
 
     .\.venv\Scripts\python.exe -m unittest discover -s Python\tests -v
 
-Verified result: all 5 tests pass.
+Verified result: all 13 tests pass.
 
 
 PYTHON OUTPUTS
@@ -105,6 +122,9 @@ They use base MATLAB features and are intended to create MATLAB-specific
 plots, GIFs, and a WDM CSV in the same Results folders. MATLAB/Octave was
 not installed in the environment where this project was last run, so MATLAB
 execution and its outputs have not been verified there.
+The MATLAB entry point asks for the equivalent values and accepts defaults
+when Enter is pressed. It supports a user-selected WDM channel count and
+wavelengths; the circulator remains three-port.
 
 
 MODEL LIMITATIONS

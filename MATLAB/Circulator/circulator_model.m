@@ -8,16 +8,23 @@ circulatorGraphDir = fullfile(circulatorProjectDir, 'Results', 'Graphs');
 if ~exist(circulatorGraphDir, 'dir')
     mkdir(circulatorGraphDir);
 end
+if ~exist('circulatorInsertionLoss_dB', 'var')
+    circulatorInsertionLoss_dB = 0.6;
+end
+if ~exist('circulatorCrosstalk_dB', 'var')
+    circulatorCrosstalk_dB = 35;
+end
+if ~exist('circulatorInputPower_mW', 'var')
+    circulatorInputPower_mW = 1;
+end
 
 circulatorIdealPower = zeros(3, 3);
 circulatorIdealPower(2, 1) = 1; % 1 -> 2
 circulatorIdealPower(3, 2) = 1; % 2 -> 3
 circulatorIdealPower(1, 3) = 1; % 3 -> 1
 
-% Assumed realistic values: 0.6 dB insertion loss on the routed path and
-% -35 dB power coupling to each unintended output. Entries are power ratios.
-circulatorInsertionLoss_dB = 0.6;
-circulatorCrosstalk_dB = 35;
+% Assumed realistic values: user-selected loss on the routed path and
+% unwanted outputs. Entries are power ratios.
 circulatorRoutedPower = 10^(-circulatorInsertionLoss_dB / 10);
 circulatorCrosstalkPower = 10^(-circulatorCrosstalk_dB / 10);
 circulatorRealisticPower = circulatorCrosstalkPower * ones(3, 3);
@@ -52,19 +59,15 @@ title('Realistic transfer (dB power ratio)');
 colorbar;
 saveas(gcf, fullfile(circulatorGraphDir, 'circulator_transfer.png'));
 
-% Show the three output powers for 1 mW launched separately at each port.
-circulatorInputPower_mW = 1;
-circulatorOutputIdeal_mW = circulatorIdealPower * ...
-    (circulatorInputPower_mW * ones(3, 1));
-circulatorOutputRealistic_mW = circulatorRealisticPower * ...
-    (circulatorInputPower_mW * ones(3, 1));
+% Compare output power for the selected input power applied at each input.
+circulatorOutputRealistic_mW = circulatorRealisticPower * circulatorInputPower_mW;
 figure('Name', 'Circulator output powers');
-bar([circulatorOutputIdeal_mW, circulatorOutputRealistic_mW]);
+bar(circulatorOutputRealistic_mW.');
 grid on;
-set(gca, 'XTick', 1:3, 'XTickLabel', {'Output 1', 'Output 2', 'Output 3'});
-ylabel('Output power for 1 mW at each input (mW)');
-title('Circulator output power by destination port');
-legend('Ideal', 'Realistic', 'Location', 'northwest');
+set(gca, 'XTick', 1:3, 'XTickLabel', {'Input 1', 'Input 2', 'Input 3'});
+ylabel(sprintf('Output power for %.4g mW input (mW)', circulatorInputPower_mW));
+title('Circulator output power for each individual input');
+legend('Output 1', 'Output 2', 'Output 3', 'Location', 'northwest');
 saveas(gcf, fullfile(circulatorGraphDir, 'circulator_output_power.png'));
 
 circulatorAnimationDir = fullfile(circulatorProjectDir, 'Results', 'Animations');
